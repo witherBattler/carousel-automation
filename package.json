@@ -1,0 +1,24 @@
+{
+  "name": "testing-tools",
+  "version": "0.1.0",
+  "private": true,
+  "description": "n4n workflow project",
+  "license": "MIT",
+  "scripts": {
+    "dev": "npx concurrently \"node server.js\" \"ngrok http 3993 --url=grubworm-expert-sawfly.ngrok-free.app\""
+  },
+  "dependencies": {
+    "@babel/core": "^7.28.3",
+    "@babel/plugin-transform-modules-commonjs": "^7.27.1",
+    "@extractus/article-extractor": "^8.0.19",
+    "canvas": "^3.1.2",
+    "cheerio": "^1.1.2",
+    "concurrently": "^9.2.0",
+    "dotenv": "^17.2.1",
+    "express": "^4.19.2",
+    "open": "^10.2.0",
+    "openai": "^5.12.2",
+    "skia-canvas": "^2.0.2",
+    "zod": "^4.0.17"
+  }
+}

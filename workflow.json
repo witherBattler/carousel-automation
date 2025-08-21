@@ -1,0 +1,194 @@
+{
+  "nodes": [
+    {
+      "id": "node-buaiw",
+      "type": "Trigger",
+      "params": {
+        "notes": "",
+        "url": "https://www.edithunt.app/blog/why-youre-not-getting-clients",
+        "instagram_user_id": "",
+        "instagram_access_token": "",
+        "auto_post": false
+      },
+      "position": {
+        "x": 120,
+        "y": 80
+      }
+    },
+    {
+      "id": "node-kn7pb",
+      "type": "Code",
+      "params": {
+        "code": "import * as z from \"zod\";\n\n\nasync function handler(context, console, tools) {\n  //console.log(Object.keys(z))\n\n  const text = context.notes\n  \n  //console.log(tools.zod.z)\n\n  const CarouselSchema = z.object({\n    carousel: z.array(tools.zod.z.object({\n      title: z.string(),\n      text: z.string(),\n      image: z.string()\n    }))\n  })\n  \n  const format = tools.zod.zodTextFormat(CarouselSchema, \"carousel_format\")\n\n  console.log(\"response\")\n  const response = await tools.openai.responses.create({\n    model: \"gpt-5\",\n    input: `You are a content creator specializing in transforming articles or notes into compelling Instagram carousel posts. Your task is to take the provided text and create an Instagram carousel (4-10 slides) that is visually engaging, easy to consume, and optimized for scrollability. Focus on presenting the most interesting information first and getting to the point quickly. Respond with a JSON. Guidelines: 1. Each carousel slide must include: - For the first slide only: \"title\": (required, max 5 words), \"image\": (short, AI-friendly descriptive prompt) - For all other slides: omit \"title\" and \"image\" fields entirely. All slides must include: \"text\": (concise, main content, 30 words or less, using full sentences). Each sentence should be followed by a line break. 2. Avoid overly wordy text; ensure brevity in all slides. 3. Focus on making insightful observations or interesting commentary, rather than simply stating facts. 4. Determine the number of slides based on how interesting the topic is, max 10 slides—break down complex topics into manageable, easily-digestible segments. 5. Emphasize storytelling: structure the carousel with a clear narrative flow so the reader always knows what to expect next. Start with a hook revealing the main idea, then introduce supporting points in a sequence that gradually deepens the reader's understanding, previewing and summarizing where appropriate to avoid abrupt shifts. Use organizing language such as \"Firstly,\" \"Next,\" \"Then,\" \"Finally,\" or similar signposting transitions, especially at the beginning of new slides, to help guide readers and ensure the carousel does not feel like a list of disconnected facts. 6. Ensure you present only the best & most important ideas, with special attention to showcasing what is most interesting or novel. Expand to show their importance, prioritizing substance over quantity. 7. Use formatting like bullet points or arrows for multi-step points where appropriate, and encourage the use of lists with the • character, but only include lists on about 25% of slides where most appropriate, rather than on every slide. 8. Do not repeat the same information across different slides. After generating the carousel, review to ensure each slide is concise, non-repetitive, uses full sentences, and is logically sequenced. Create transitions between slides to establish clear connections and prepare the reader for each new idea. Use clear, direct language and avoid complex terminology. Aim for a Flesch reading score of 80 or higher. Use the active voice. Avoid adverbs. Avoid buzzwords and instead use plain English. Use jargon where relevant. Avoid being salesy or overly enthusiastic and instead express calm confidence. Make any necessary self-corrections before finalizing your output. Input article/notes:\n${text}\nAction: Generate the Instagram carousel formatted as above, based on the input article or notes.`,\n    //effort: \"low\",\n    text: {\n      format\n    }\n  }) \n  //console.log(response) \n  const responseText = response.output.find(output => output.type == \"message\").content[0].text\n  let responseJson\n  try {\n    responseJson = JSON.parse(responseText)\n  } catch(error) {\n    console.warn(\"THE RESPONSE IS NOT A JSON!\")\n  }\n\n  responseJson.carousel = responseJson.carousel.map(slide => {\n    return {\n      ...slide,\n      text: slide.text.replaceAll(\"•\", \"\\n•\")\n    }\n  })\n\n  return {\n    ...context,\n    response: responseJson\n  };\n}"
+      },
+      "position": {
+        "x": 600,
+        "y": 80
+      }
+    },
+    {
+      "id": "node-cqe65",
+      "type": "Code",
+      "params": {
+        "code": "import client from \"tools/openai\"\n\nasync function handler(context, console) {\n  // Log to the workflow console\n  const prompt = `Generate this as a picture, no other information provided: ${context.response.carousel[0].image}\n\nIt is for an instagram carousel post. It should be in square (1:1) aspect ratio. Don't include any type of text. Generate something very visual, not necessarily something informative. Don't be boring, and generate a picture that's eye-catching. It's an illustration. Also, make it dark themed (the background should ideally be dark, if possible, but it depends on the image itself.) Use vibrant and eye-catching colors on the image to attract eyes. Please add free space at the bottom as a part of the image won't be seen (about 25% of the bottom is hidden) so don't add anything there, just the background.`\n  const result = await client.images.generate({\n    model: \"gpt-image-1\",\n    prompt,\n    quality: \"high\"\n  });\n\n  const image_base64 = \"data:image/png;base64,\" + result.data[0].b64_json;\n\n\n  return {...context, firstImageBase64: image_base64};\n}"
+      },
+      "position": {
+        "x": 840,
+        "y": 80
+      }
+    },
+    {
+      "id": "node-q43wt",
+      "type": "Log",
+      "params": {
+        "message": "{{firstImageBase64.substring(0, 100)}}"
+      },
+      "position": {
+        "x": 1560,
+        "y": 80
+      }
+    },
+    {
+      "id": "node-2u5i1",
+      "type": "Code",
+      "params": {
+        "code": "const { Canvas, loadImage } = require('skia-canvas')\nconst fs = require('fs')\nimport {drawBottomAlignedText, loadFonts, drawTransition} from \"tools/canvasUtil\"\n\n\nasync function handler(context, console) {\n  const canvas = new Canvas(1080, 1350)\n  const ctx = canvas.getContext('2d')\n\n  //console.log(context.response)\n\n  loadImage(context.firstImageBase64).then(async (image) => {\n    ctx.fillStyle = \"black\"\n    ctx.fillRect(0, 0, 1080, 1350)\n    \n    loadFonts()\n\n    ctx.drawImage(image, 0, -100, 1080, 1080)\n\n    \n    // ctx.fillText('Awesome!', 50, 100)\n    ctx.font = '45px \"Roboto Flex\"'\n    const [bottomTextHeight, drawBottomText] = drawBottomAlignedText(ctx, context.response.carousel[0].text, 100, 100, 1080-100, 60)\n    let blackHeight = 100 + bottomTextHeight + 20\n    ctx.font = '70px \"Cormorant\"'\n    const [titleTextHeight, drawTitleText] = drawBottomAlignedText(ctx, context.response.carousel[0].title, 100, blackHeight, 1080-100, 75)\n    blackHeight += titleTextHeight + 40\n    \n    ctx.fillStyle = \"black\"\n    ctx.fillRect(0, 1350-blackHeight, 1080, blackHeight)\n    drawTransition(ctx, 0, 1350-blackHeight - 200, 1080, 200)\n\n    \n    \n    ctx.font = '300 40px \"Roboto Flex\"'\n    ctx.fillStyle = \"rgba(255, 255, 255, 0.8)\"\n    drawBottomText()\n    ctx.save()\n    ctx.shadowColor = 'rgba(255, 255, 255, 0.5)';     // Glow color\n    ctx.shadowBlur = 20;             // Glow strength\n    ctx.shadowOffsetX = 0;\n    ctx.shadowOffsetY = 0;\n    ctx.font = '800 70px \"Cormorant\"'\n    ctx.fillStyle = \"rgba(255, 255, 255, 1)\"\n    drawTitleText()\n    ctx.restore()\n\n    fs.mkdirSync('./outputs/'+context.saveId, { recursive: true });\n    // const out = fs.createWriteStream('./outputs/'+context.saveId+'/test.png')\n    // const stream = canvas.createPNGStream()\n    // stream.pipe(out)\n    // out.on('finish', () =>  console.log('The PNG file was created.'))\n    const buffer = await canvas.toBuffer('jpeg')\n    fs.writeFileSync('./outputs/'+context.saveId + \"/1.jpeg\", buffer);\n\n    \n  })\n  \n  \n  \n  \n\n\n  return context;\n}"
+      },
+      "position": {
+        "x": 1560,
+        "y": 200
+      }
+    },
+    {
+      "id": "node-6zodu",
+      "type": "Code",
+      "params": {
+        "code": "import {loadFonts} from \"tools/canvasUtil\"\n\nasync function handler(context, console) {\n  loadFonts()\n  console.log(Object.keys(context))\n\n  // Return the modified context\n  return {...context, saveId: Math.floor(Math.random()*100)};\n}"
+      },
+      "position": {
+        "x": 1320,
+        "y": 80
+      }
+    },
+    {
+      "id": "node-lkgpg",
+      "type": "Code",
+      "params": {
+        "code": "const { Canvas, loadImage } = require('skia-canvas')\nconst fs = require('fs')\nimport {drawBottomAlignedText, prepareCenteredText, loadFonts, drawTransition} from \"tools/canvasUtil\"\n\n\nasync function handler(context, console) {\n\n  const logoImage = await loadImage(\"assets/logo.png\")\n  const imageAccessoriesLeftImage = await loadImage(\"assets/image-accessories-left.png\")\n  const imageAccessoriesRightImage = await loadImage(\"assets/image-accessories-right.png\")\n\n  context.response.carousel.forEach(async (slide, index) => {\n\n\n    if(index == 0) return \n\n\n    const canvas = new Canvas(1080, 1350)\n    const ctx = canvas.getContext('2d')\n\n    ctx.fillStyle = \"black\"\n    ctx.fillRect(0, 0, 1080, 1350)\n\n    const bottomArea = {y: 1350-270, height: 270, center: 1350-270+150} //x, y, width, height\n    const topArea = {y: 0, height: 1350-270, center: (1350-270)/2}\n    ctx.font = '50px \"Roboto Flex\"'\n    const [mainTextHeight, drawMainTextAt] = prepareCenteredText(ctx, slide.text, 100, 1080-140, 65)\n    const topAreaContent = {height: 150 + 41 + mainTextHeight, center: topArea.center + 50}\n    topAreaContent.y = topAreaContent.center - topAreaContent.height/2\n    const imageAccessoriesLeft = {x: 100, height: 50, center: bottomArea.center, width: 50*imageAccessoriesLeftImage.width/imageAccessoriesLeftImage.height}\n    imageAccessoriesLeft.y = bottomArea.center - imageAccessoriesLeft.height/2\n    const imageAccessoriesRight = {height: 40, center: bottomArea.center, width: 40*imageAccessoriesRightImage.width/imageAccessoriesRightImage.height, y: imageAccessoriesLeft.y}\n    imageAccessoriesRight.x = 1080-100-imageAccessoriesRight.width\n\n\n    ctx.font = '50px \"Roboto Flex\"'\n    ctx.fillStyle = \"rgba(255, 255, 255, 1)\"\n    drawMainTextAt(topAreaContent.y+150+41+mainTextHeight/2)\n    ctx.drawImage(logoImage, 100, topAreaContent.y, 150, 150)\n    ctx.drawImage(imageAccessoriesLeftImage, imageAccessoriesLeft.x, imageAccessoriesLeft.y, imageAccessoriesLeft.width, imageAccessoriesLeft.height)\n    ctx.drawImage(imageAccessoriesRightImage, imageAccessoriesRight.x, imageAccessoriesRight.y, imageAccessoriesRight.width, imageAccessoriesRight.height)\n    ctx.font = '500 55px \"Roboto Flex\"'\n    ctx.fillStyle = \"rgba(255, 255, 255, 1)\"\n    ctx.fillText(\"EditHunt\", 100+150+30, topAreaContent.y + 150/2 - 20 + 15)\n    ctx.font = '400 40px \"Roboto Flex\"'\n    ctx.fillStyle = \"rgba(255, 255, 255, 0.65)\"\n    ctx.fillText(\"@edithuntapp\", 100+150+30, topAreaContent.y + 150/2 + 30 + 15)\n\n\n\n    // ctx.fillStyle = \"rgba(255, 30, 30, 0.2)\"\n    // ctx.fillRect(100, topAreaContent.y, 1080-200, topAreaContent.height)\n\n    // ctx.fillStyle = \"black\"\n    // ctx.fillRect(0, 0, 1080, 1350)\n    \n    \n\n\n    \n    // // ctx.fillText('Awesome!', 50, 100)\n    // ctx.font = '45px \"Roboto Flex\"'\n    // const [bottomTextHeight, drawBottomText] = drawBottomAlignedText(ctx, context.response.carousel[0].text, 100, 100, 1080-100, 60)\n    // let blackHeight = 100 + bottomTextHeight + 20\n    // ctx.font = '70px \"Cormorant\"'\n    // const [titleTextHeight, drawTitleText] = drawBottomAlignedText(ctx, context.response.carousel[0].title, 100, blackHeight, 1080-100, 75)\n    // blackHeight += titleTextHeight + 40\n    \n    // ctx.fillStyle = \"black\"\n    // ctx.fillRect(0, 1350-blackHeight, 1080, blackHeight)\n    // drawTransition(ctx, 0, 1350-blackHeight - 200, 1080, 200)\n\n    \n    \n    // ctx.font = '300 40px \"Roboto Flex\"'\n    // ctx.fillStyle = \"rgba(255, 255, 255, 0.8)\"\n    // drawBottomText()\n    // ctx.save()\n    // ctx.shadowColor = 'rgba(255, 255, 255, 0.5)';     // Glow color\n    // ctx.shadowBlur = 20;             // Glow strength\n    // ctx.shadowOffsetX = 0;\n    // ctx.shadowOffsetY = 0;\n    // ctx.font = '800 70px \"Cormorant\"'\n    // ctx.fillStyle = \"rgba(255, 255, 255, 1)\"\n    // drawTitleText()\n    // ctx.restore()\n\n    fs.mkdirSync('./outputs/'+context.saveId, { recursive: true });\n    const buffer = await canvas.toBuffer('jpeg')\n    fs.writeFileSync('./outputs/'+context.saveId + \"/\" + (index+1) + \".jpeg\", buffer);\n\n  })\n  \n  \n  \n  \n  \n\n\n  return context;\n}"
+      },
+      "position": {
+        "x": 1560,
+        "y": 320
+      }
+    },
+    {
+      "id": "node-3yb1e",
+      "type": "Code",
+      "params": {
+        "code": "import fetch from 'node-fetch';\nimport { extractFromHtml  } from '@extractus/article-extractor'\nimport { stripHtmlTagsSafe, extractVisibleText, getHTML } from \"tools/strip\"\n\n\nasync function handler(context, console) {\n  if(!context.notes) {\n    if(!context.url) {\n      console.log(\"NO NOTES AND NO URL! NEED AT LEAST ONE\")\n    }\n\n    const html = await getHTML(context.url)\n    console.log(html.substring(0, 1000))\n    if(!html) return null\n    let articleData = await extractFromHtml(html)\n    if(articleData?.content) {\n      return {\n        ...context,\n        notes: stripHtmlTagsSafe(articleData.content)\n      }\n    } else {\n      return {\n        ...context,\n        notes: extractVisibleText(html)\n      }\n    }\n    \n  }\n  \n\n\n\n  return context;\n}"
+      },
+      "position": {
+        "x": 360,
+        "y": 80
+      }
+    },
+    {
+      "id": "node-v1opc",
+      "type": "Code",
+      "params": {
+        "code": "// For pure ES modules, use dynamicImport:\n// const fetch = await dynamicImport('node-fetch');\n\nasync function handler(context, console) {\n  // Log to the workflow console\n  console.log(`CREATING CAROUSEL IS FINISHED!!! SAVED TO outputs/${context.saveId}/1-?.png`);\n  \n  if(context.instagram_user_id && context.instagram_access_token && context.auto_post) {\n    console.log(\"GOOD! instagram_user_id AND instagram_access_token ARE defined. Continuing to create carousel post in instagram -> -> ->\")\n  } else {\n    console.log(\"STOP! instagram_user_id OR instagram_access_token aren't defined. Unable to continue creating carousel post in instagram. OR auto_post is false\")\n    return null\n  }\n\n  // Return the modified context\n  return context;\n}"
+      },
+      "position": {
+        "x": 1800,
+        "y": 200
+      }
+    },
+    {
+      "id": "node-a9f8u",
+      "type": "Code",
+      "params": {
+        "code": "import {checkContentPublishingLimit, createInstagramPost} from \"tools/instagram\"\n\n\nasync function handler(context, console) {\n  const publishingLimitToday = await checkContentPublishingLimit(context.instagram_user_id, context.instagram_access_token)\n\n  console.log(Object.keys(context))\n\n  if(publishingLimitToday) {\n    const post = await createInstagramPost(context.instagram_user_id, context.instagram_access_token, context.saveId, context.caption)\n    console.log(post, \"POST\")\n  }\n\n  return context;\n}"
+      },
+      "position": {
+        "x": 2280,
+        "y": 200
+      }
+    },
+    {
+      "id": "node-ohsw4",
+      "type": "Code",
+      "params": {
+        "code": "import client from \"tools/openai\"\nimport * as z from \"zod\";\n\n\nasync function handler(context, console, tools) {\n  const CaptionSchema = z.object({\n    caption: z.string()\n  })\n  \n  const format = tools.zod.zodTextFormat(CaptionSchema, \"caption_format\")\n\n  const response = await tools.openai.responses.create({\n    model: \"gpt-5\",\n    input: `Create a keyword rich caption for my Instagram video. The format should be:\n“Hook (2 emojis)\n1-3 lines with keywords related to the script that can help new viewers find the video\nAnd 6-9 hashtags that are commonly used on Instagram that are related to the topic of the\nVideo.”\nMake sure that the caption is interesting, reaches a target audience aged 21 and above, and\nmake sure to not use big words. Make the reading level of the caption 6th grade.\nHere are some examples of good captions:\n“The Best Caption Strategy You Should Follow!📲🤫\nIf you want your video to be pushed to more people and get more views and engagement,\nfollowing this caption strategy will help do that. A strong hook with some value using SEO is all\nyou need. But remember, hashtags are useless!\n•\n•\n•\n#socialmediastrategy #socialmediagrowth #instagramgrowth #business #entrepreneur\n#contentmarketing”\nAfter analyzing this, please make a caption for this video. Here is the script of the video:\n“${context.response.carousel.map(s => s.text).join(\" \")}“`,\n    text: {\n      format\n    }\n  }) \n  //console.log(response) \n  const responseText = response.output.find(output => output.type == \"message\").content[0].text\n  let responseJson\n  try {\n    responseJson = JSON.parse(responseText)\n  } catch(error) {\n    console.warn(\"THE RESPONSE IS NOT A JSON!\")\n  }\n\n  return {\n    ...context,\n    caption: responseJson.caption\n  };\n}"
+      },
+      "position": {
+        "x": 1080,
+        "y": 80
+      }
+    },
+    {
+      "id": "node-a8t0c",
+      "type": "Log",
+      "params": {
+        "message": "{{caption}}"
+      },
+      "position": {
+        "x": 2040,
+        "y": 200
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "node-kn7pb",
+      "to": "node-cqe65"
+    },
+    {
+      "from": "node-6zodu",
+      "to": "node-q43wt"
+    },
+    {
+      "from": "node-6zodu",
+      "to": "node-2u5i1"
+    },
+    {
+      "from": "node-6zodu",
+      "to": "node-lkgpg"
+    },
+    {
+      "from": "node-buaiw",
+      "to": "node-3yb1e"
+    },
+    {
+      "from": "node-lkgpg",
+      "to": "node-v1opc"
+    },
+    {
+      "from": "node-q43wt",
+      "to": "node-v1opc"
+    },
+    {
+      "from": "node-2u5i1",
+      "to": "node-v1opc"
+    },
+    {
+      "from": "node-a8t0c",
+      "to": "node-a9f8u"
+    },
+    {
+      "from": "node-3yb1e",
+      "to": "node-kn7pb"
+    },
+    {
+      "from": "node-v1opc",
+      "to": "node-a8t0c"
+    },
+    {
+      "from": "node-cqe65",
+      "to": "node-ohsw4"
+    },
+    {
+      "from": "node-ohsw4",
+      "to": "node-6zodu"
+    }
+  ]
+}
